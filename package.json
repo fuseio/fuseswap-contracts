@@ -7,7 +7,8 @@
   },
   "scripts": {
     "compile": "truffle compile",
-    "test": "./scripts/test.sh"
+    "test": "./scripts/test.sh",
+    "flatten": "./scripts/flatten.sh"
   },
   "author": "Mulenga Bowa",
   "license": "MIT",
@@ -19,6 +20,7 @@
     "ganache-cli": "^6.12.2",
     "moment": "^2.29.1",
     "truffle": "^5.2.6",
+    "truffle-flattener": "^1.5.0",
     "web3": "^1.3.4"
   }
 }
