@@ -21,7 +21,8 @@ contract PegSwap is Owned, ReentrancyGuard {
     address indexed target
   );
   event TokensSwapped(
-    uint256 amount,
+    uint256 amountIn,
+    uint256 amountOut,
     address indexed source,
     address indexed target,
     address indexed caller
@@ -88,24 +89,39 @@ contract PegSwap is Owned, ReentrancyGuard {
   /**
    * @notice exchanges the source token for target token
    * @param amount count of tokens being swapped
-   * @param source the token that is being given
-   * @param target the token that is being taken
+   * @param source_ the token that is being given
+   * @param target_ the token that is being taken
    */
   function swap(
     uint256 amount,
-    address source,
-    address target
+    address source_,
+    address target_
   )
     external
     nonReentrant()
   {
-    _removeLiquidity(amount, source, target);
-    _addLiquidity(amount, target, source);
+    ERC20 source = ERC20(source_);
+    ERC20 target = ERC20(target_);
 
-    emit TokensSwapped(amount, source, target, msg.sender);
+    uint8 sDecimals = source.decimals();
+    uint8 tDecimals = target.decimals();
 
-    require(ERC20(source).transferFrom(msg.sender, address(this), amount), "transferFrom failed");
-    require(ERC20(target).transfer(msg.sender, amount), "transfer failed");
+    uint256 amountOut;
+    if (sDecimals > tDecimals) {
+      amountOut = amount / (10 ** uint256(sDecimals - tDecimals));
+    } else if (sDecimals < tDecimals) {
+      amountOut = amount * (10 ** uint256(tDecimals - sDecimals));
+    } else {
+      amountOut = amount;
+    }
+
+    _removeLiquidity(amountOut, source_, target_);
+    _addLiquidity(amount, target_, source_);
+
+    emit TokensSwapped(amount, amountOut, source_, target_, msg.sender);
+
+    require(source.transferFrom(msg.sender, address(this), amount), "transferFrom failed");
+    require(target.transfer(msg.sender, amountOut), "transfer failed");
   }
 
   /**
@@ -149,7 +165,7 @@ contract PegSwap is Owned, ReentrancyGuard {
     _removeLiquidity(amount, source, target);
     _addLiquidity(amount, target, source);
 
-    emit TokensSwapped(amount, source, target, sender);
+    emit TokensSwapped(amount, amount, source, target, sender);
 
     require(ERC20(target).transfer(sender, amount), "transfer failed");
   }

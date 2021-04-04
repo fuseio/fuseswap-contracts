@@ -2,8 +2,8 @@ require('./support/helpers.js')
 
 const PegSwap = artifacts.require('PegSwap')
 const Token677 = artifacts.require('Token677')
-const StandardTokenMock = artifacts.require('StandardTokenMock')
-const Token20 = StandardTokenMock
+const StandardTokenMock_18 = artifacts.require('StandardTokenMock18')
+const Token20_18 = StandardTokenMock_18
 
 contract('PegSwap', accounts => {
 
@@ -16,7 +16,7 @@ contract('PegSwap', accounts => {
   beforeEach(async () => {
     owner = accounts[0]
     user = accounts[1]
-    base = await Token20.new(owner, totalIssuance, { from: owner })
+    base = await Token20_18.new(owner, totalIssuance, { from: owner })
     wrapped = await Token677.new(totalIssuance, { from: owner })
     swap = await PegSwap.new({ from: owner })
 
