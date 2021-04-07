@@ -21,7 +21,7 @@ contract("PegSwap", (accounts) => {
   describe("swap(uint256,address,address)", () => {
     describe("direct", () => {
       beforeEach(async () => {
-        tradeAmount = web3.utils.toWei("1", "mwei");
+        tradeAmount = web3.utils.toWei("1", "mwei"); // 1*(10^6)
 
         await base.transfer(user, depositAmount, { from: owner });
         await wrapped.approve(swap.address, depositAmount, { from: owner });
@@ -40,46 +40,51 @@ contract("PegSwap", (accounts) => {
 
       describe("after the user has approved the contract", () => {
         beforeEach(async () => {
-          await base.approve(swap.address, depositAmount, { from: user });
+          await base.approve(swap.address, tradeAmount, { from: user });
         });
 
         it("pulls source funds from the user", async () => {
-          let swapBalance = await base.balanceOf(swap.address);
-          assert.equal(0, swapBalance);
-          let userBalance = await base.balanceOf(user);
-          assert.equal(depositAmount, userBalance);
+          let swapBaseTokenBalance = await base.balanceOf(swap.address);
+          assert.equal(0, swapBaseTokenBalance);
+          let userBaseTokenBalance = await base.balanceOf(user);
+          assert.equal(depositAmount, userBaseTokenBalance);
 
           await swap.swap(tradeAmount, base.address, wrapped.address, {
             from: user,
           });
 
-          swapBalance = await base.balanceOf(swap.address);
-          assert.equal(tradeAmount, swapBalance);
-          userBalance = await base.balanceOf(user);
-          assert.equal(depositAmount - tradeAmount, userBalance);
+          swapBaseTokenBalance = await base.balanceOf(swap.address);
+          assert.equal(tradeAmount, swapBaseTokenBalance);
+          userBaseTokenBalance = await base.balanceOf(user);
+          assert.equal(depositAmount - tradeAmount, userBaseTokenBalance);
         });
 
         it("sends target funds to the user", async () => {
-          let swapBalance = await wrapped.balanceOf(swap.address);
-          assert.equal(depositAmount, swapBalance);
-          let userBalance = await wrapped.balanceOf(user);
-          assert.equal(0, userBalance);
+          let swapWrappedTokenBalance = await wrapped.balanceOf(swap.address); // 100 eth
+          assert.equal(depositAmount, swapWrappedTokenBalance);
+          let userWrappedTokenBalance = await wrapped.balanceOf(user);
+          assert.equal(0, userWrappedTokenBalance);
 
           await swap.swap(tradeAmount, base.address, wrapped.address, {
             from: user,
           });
 
-          swapBalance = await wrapped.balanceOf(swap.address);
-          assert.equal(web3.utils.toWei("99", "ether"), swapBalance);
-          userBalance = await wrapped.balanceOf(user);
-          assert.equal(web3.utils.toWei("1", "ether"), userBalance);
+          // swap 1 mwei base for 1 eth wrapped
+
+          swapWrappedTokenBalance = await wrapped.balanceOf(swap.address); // 99 eth
+          assert.equal(
+            web3.utils.toWei("99", "ether"),
+            swapWrappedTokenBalance
+          );
+          userWrappedTokenBalance = await wrapped.balanceOf(user); // 1 eth
+          assert.equal(web3.utils.toWei("1", "ether"), userWrappedTokenBalance);
         });
 
         it("updates the swappable amount for the pair", async () => {
           let swappable = await swap.getSwappableAmount(
             base.address,
             wrapped.address
-          );
+          ); // 100 eth
           assert.equal(depositAmount, swappable);
 
           await swap.swap(tradeAmount, base.address, wrapped.address, {
@@ -89,7 +94,7 @@ contract("PegSwap", (accounts) => {
           swappable = await swap.getSwappableAmount(
             base.address,
             wrapped.address
-          );
+          ); // 99 eth
           assert.equal(web3.utils.toWei("99", "ether"), swappable);
         });
 
@@ -97,7 +102,7 @@ contract("PegSwap", (accounts) => {
           let swappable = await swap.getSwappableAmount(
             wrapped.address,
             base.address
-          );
+          ); // 0
           assert.equal(0, swappable.toNumber());
 
           await swap.swap(tradeAmount, base.address, wrapped.address, {
@@ -107,8 +112,21 @@ contract("PegSwap", (accounts) => {
           swappable = await swap.getSwappableAmount(
             wrapped.address,
             base.address
-          );
+          ); // 1 mwei
           assert.equal(tradeAmount, swappable.toNumber());
+        });
+
+        it("reverts when amount is greater than liquidity", async () => {
+          await assertActionThrows(async () => {
+            await swap.swap(
+              depositAmount + web3.utils.toWei("1", "ether"),
+              wrapped.address,
+              base.address,
+              {
+                from: user,
+              }
+            );
+          });
         });
       });
     });
@@ -133,41 +151,41 @@ contract("PegSwap", (accounts) => {
 
       describe("after the user has approved the contract", () => {
         beforeEach(async () => {
-          await wrapped.approve(swap.address, depositAmount, { from: user });
+          await wrapped.approve(swap.address, tradeAmount, { from: user });
         });
 
         it("pulls source funds from the user", async () => {
-          let swapBalance = await wrapped.balanceOf(swap.address);
+          let swapBalance = await wrapped.balanceOf(swap.address); // 0 eth
           assert.equal(0, swapBalance);
-          let userBalance = await wrapped.balanceOf(user);
+          let userBalance = await wrapped.balanceOf(user); // 100 eth
           assert.equal(depositAmount, userBalance);
 
           await swap.swap(tradeAmount, wrapped.address, base.address, {
             from: user,
           });
 
-          swapBalance = await wrapped.balanceOf(swap.address);
+          swapBalance = await wrapped.balanceOf(swap.address); // 1 eth
           assert.equal(tradeAmount, swapBalance);
-          userBalance = await wrapped.balanceOf(user);
+          userBalance = await wrapped.balanceOf(user); // 99 eth
           assert.equal(depositAmount - tradeAmount, userBalance);
         });
 
         it("sends target funds to the user", async () => {
-          let swapBalance = await base.balanceOf(swap.address);
+          let swapBalance = await base.balanceOf(swap.address); // 100 eth
           assert.equal(depositAmount, swapBalance);
-          let userBalance = await base.balanceOf(user);
+          let userBalance = await base.balanceOf(user); // 0 mwei
           assert.equal(0, userBalance);
 
           await swap.swap(tradeAmount, wrapped.address, base.address, {
             from: user,
           });
 
-          swapBalance = await base.balanceOf(swap.address);
+          swapBalance = await base.balanceOf(swap.address); // 100 eth - 1 mwei
           assert.equal(
             depositAmount - web3.utils.toWei("1", "mwei"),
             swapBalance
           );
-          userBalance = await base.balanceOf(user);
+          userBalance = await base.balanceOf(user); // 1 mwei
           assert.equal(web3.utils.toWei("1", "mwei"), userBalance);
         });
 
@@ -175,7 +193,7 @@ contract("PegSwap", (accounts) => {
           let swappable = await swap.getSwappableAmount(
             wrapped.address,
             base.address
-          );
+          ); // 100 eth
           assert.equal(depositAmount, swappable);
 
           await swap.swap(tradeAmount, wrapped.address, base.address, {
@@ -185,15 +203,18 @@ contract("PegSwap", (accounts) => {
           swappable = await swap.getSwappableAmount(
             wrapped.address,
             base.address
+          ); // 100 eth - 1 mwei
+          assert.equal(
+            depositAmount - web3.utils.toWei("1", "mwei"),
+            swappable
           );
-          assert.equal(depositAmount - web3.utils.toWei("1", "mwei"), swappable);
         });
 
         it("updates the swappable amount for the inverse of the pair", async () => {
           let swappable = await swap.getSwappableAmount(
             base.address,
             wrapped.address
-          );
+          ); // 0 eth
           assert.equal(0, swappable.toNumber());
 
           await swap.swap(tradeAmount, wrapped.address, base.address, {
@@ -203,8 +224,21 @@ contract("PegSwap", (accounts) => {
           swappable = await swap.getSwappableAmount(
             base.address,
             wrapped.address
-          );
+          ); // 1 eth
           assert.equal(tradeAmount, swappable);
+        });
+
+        it("reverts when amount is greater than liquidity", async () => {
+          await assertActionThrows(async () => {
+            await swap.swap(
+              depositAmount + web3.utils.toWei("1", "ether"),
+              wrapped.address,
+              base.address,
+              {
+                from: user,
+              }
+            );
+          });
         });
       });
     });

@@ -21,8 +21,8 @@ contract PegSwap is Owned, ReentrancyGuard {
     address indexed target
   );
   event TokensSwapped(
-    uint256 amountIn,
-    uint256 amountOut,
+    uint256 sourceAmount,
+    uint256 targetAmount,
     address indexed source,
     address indexed target,
     address indexed caller
@@ -88,40 +88,28 @@ contract PegSwap is Owned, ReentrancyGuard {
 
   /**
    * @notice exchanges the source token for target token
-   * @param amount count of tokens being swapped
-   * @param source_ the token that is being given
-   * @param target_ the token that is being taken
+   * @param sourceAmount count of tokens being swapped
+   * @param source the token that is being given
+   * @param target the token that is being taken
    */
   function swap(
-    uint256 amount,
-    address source_,
-    address target_
+    uint256 sourceAmount,
+    address source,
+    address target
   )
     external
     nonReentrant()
   {
-    ERC20 source = ERC20(source_);
-    ERC20 target = ERC20(target_);
+    uint256 targetAmount = _amountOut(source, target, sourceAmount);
+    require(targetAmount <= getSwappableAmount(source, target));
 
-    uint8 sDecimals = source.decimals();
-    uint8 tDecimals = target.decimals();
+    _removeLiquidity(targetAmount, source, target);
+    _addLiquidity(sourceAmount, target, source);
 
-    uint256 amountOut;
-    if (sDecimals > tDecimals) {
-      amountOut = amount / (10 ** uint256(sDecimals - tDecimals));
-    } else if (sDecimals < tDecimals) {
-      amountOut = amount * (10 ** uint256(tDecimals - sDecimals));
-    } else {
-      amountOut = amount;
-    }
+    emit TokensSwapped(sourceAmount, targetAmount, source, target, msg.sender);
 
-    _removeLiquidity(amountOut, source_, target_);
-    _addLiquidity(amount, target_, source_);
-
-    emit TokensSwapped(amount, amountOut, source_, target_, msg.sender);
-
-    require(source.transferFrom(msg.sender, address(this), amount), "transferFrom failed");
-    require(target.transfer(msg.sender, amountOut), "transfer failed");
+    require(ERC20(source).transferFrom(msg.sender, address(this), sourceAmount), "transferFrom failed");
+    require(ERC20(target).transfer(msg.sender, targetAmount), "transfer failed");
   }
 
   /**
@@ -232,4 +220,26 @@ contract PegSwap is Owned, ReentrancyGuard {
     return false;
   }
 
+  function _amountOut(
+    address source,
+    address target,
+    uint256 amount
+  ) 
+    private
+    returns (uint256)
+  {
+    uint8 sourceDecimals = ERC20(source).decimals();
+    uint8 targetDecimals = ERC20(target).decimals();
+
+    uint256 amountOut;
+    if (sourceDecimals > targetDecimals) {
+      amountOut = amount / (10 ** uint256(sourceDecimals - targetDecimals));
+    } else if (sourceDecimals < targetDecimals) {
+      amountOut = amount * (10 ** uint256(targetDecimals - sourceDecimals));
+    } else {
+      amountOut = amount;
+    }
+
+    return amountOut;
+  }
 }
