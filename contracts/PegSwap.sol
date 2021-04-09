@@ -100,8 +100,8 @@ contract PegSwap is Owned, ReentrancyGuard {
     external
     nonReentrant()
   {
-    uint256 targetAmount = _amountOut(source, target, sourceAmount);
-    require(targetAmount <= getSwappableAmount(source, target));
+    uint256 targetAmount = _getTargetAmount(source, target, sourceAmount);
+    require(targetAmount != 0);
 
     _removeLiquidity(targetAmount, source, target);
     _addLiquidity(sourceAmount, target, source);
@@ -132,30 +132,6 @@ contract PegSwap is Owned, ReentrancyGuard {
     emit StuckTokensRecovered(amount, target);
 
     require(ERC20(target).transfer(msg.sender, amount), "transfer failed");
-  }
-
-  /**
-   * @notice swap tokens in one transaction if the sending token supports ERC677
-   * @param sender address that initially initiated the call to the source token
-   * @param amount count of tokens sent for the swap
-   * @param targetData address of target token encoded as a bytes array
-   */
-  function onTokenTransfer(
-    address sender,
-    uint256 amount,
-    bytes calldata targetData
-  )
-    external
-  {
-    address source = msg.sender;
-    address target = abi.decode(targetData, (address));
-
-    _removeLiquidity(amount, source, target);
-    _addLiquidity(amount, target, source);
-
-    emit TokensSwapped(amount, amount, source, target, sender);
-
-    require(ERC20(target).transfer(sender, amount), "transfer failed");
   }
 
   /**
@@ -220,7 +196,7 @@ contract PegSwap is Owned, ReentrancyGuard {
     return false;
   }
 
-  function _amountOut(
+  function _getTargetAmount(
     address source,
     address target,
     uint256 amount
@@ -231,15 +207,15 @@ contract PegSwap is Owned, ReentrancyGuard {
     uint8 sourceDecimals = ERC20(source).decimals();
     uint8 targetDecimals = ERC20(target).decimals();
 
-    uint256 amountOut;
+    uint256 targetAmount;
     if (sourceDecimals > targetDecimals) {
-      amountOut = amount / (10 ** uint256(sourceDecimals - targetDecimals));
+      targetAmount = amount / (10 ** uint256(sourceDecimals - targetDecimals));
     } else if (sourceDecimals < targetDecimals) {
-      amountOut = amount * (10 ** uint256(targetDecimals - sourceDecimals));
+      targetAmount = amount * (10 ** uint256(targetDecimals - sourceDecimals));
     } else {
-      amountOut = amount;
+      targetAmount = amount;
     }
 
-    return amountOut;
+    return targetAmount;
   }
 }
