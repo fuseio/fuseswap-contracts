@@ -129,6 +129,39 @@ contract("PegSwap", (accounts) => {
           });
         });
       });
+
+      describe("edge cases", async () => {
+        beforeEach(async () => {
+          await base.approve(swap.address, depositAmount, { from: user });
+        });
+
+        it("handles converting 1000001 to 1000001000000000000", async () => {
+          let swapBalance = await wrapped.balanceOf(swap.address);
+          assert.equal(depositAmount, swapBalance);
+          let userBalance = await wrapped.balanceOf(user);
+          assert.equal(0, userBalance);
+
+          await swap.swap(
+            web3.utils.toWei("1000001", "wei"),
+            base.address,
+            wrapped.address,
+            {
+              from: user,
+            }
+          );
+
+          swapBalance = await wrapped.balanceOf(swap.address);
+          assert.equal(
+            web3.utils.toWei("98999999000000000000", "wei"),
+            swapBalance
+          );
+          userBalance = await wrapped.balanceOf(user);
+          assert.equal(
+            web3.utils.toWei("1000001000000000000", "wei"),
+            userBalance
+          );
+        });
+      });
     });
     describe("inverse", () => {
       beforeEach(async () => {
@@ -306,7 +339,7 @@ contract("PegSwap", (accounts) => {
           );
           userBalance = await base.balanceOf(user);
           assert.equal(web3.utils.toWei("9000001", "wei"), userBalance);
-        })
+        });
 
         it("handles rounding 9000000100000000000 to 9000000", async () => {
           let swapBalance = await base.balanceOf(swap.address);
@@ -330,7 +363,7 @@ contract("PegSwap", (accounts) => {
           );
           userBalance = await base.balanceOf(user);
           assert.equal(web3.utils.toWei("9000000", "wei"), userBalance);
-        })
+        });
 
         it("handles rounding 9000000000000000001 to 9000000", async () => {
           let swapBalance = await base.balanceOf(swap.address);
@@ -354,7 +387,7 @@ contract("PegSwap", (accounts) => {
           );
           userBalance = await base.balanceOf(user);
           assert.equal(web3.utils.toWei("9000000", "wei"), userBalance);
-        })
+        });
 
         it("handles rounding 1000000000000 to 1", async () => {
           let swapBalance = await base.balanceOf(swap.address);
@@ -378,7 +411,7 @@ contract("PegSwap", (accounts) => {
           );
           userBalance = await base.balanceOf(user);
           assert.equal(web3.utils.toWei("1", "wei"), userBalance);
-        })
+        });
       });
     });
   });
