@@ -47,7 +47,7 @@ Web3 = require('web3')
   }
 
   toWei = function toWei(number) {
-    return bigNum(web3.toWei(number))
+    return bigNum(web3.utils.toWei(number))
   }
 
   tokens = function tokens(number) {

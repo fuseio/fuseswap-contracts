@@ -21,11 +21,11 @@ contract PegSwap is Owned, ReentrancyGuard {
     address indexed target
   );
   event TokensSwapped(
-    uint256 sourceAmount,
-    uint256 targetAmount,
     address indexed source,
     address indexed target,
-    address indexed caller
+    address indexed caller,
+    uint256 sourceAmount,
+    uint256 targetAmount
   );
   event StuckTokensRecovered(
     uint256 amount,
@@ -106,7 +106,7 @@ contract PegSwap is Owned, ReentrancyGuard {
     _removeLiquidity(targetAmount, source, target);
     _addLiquidity(sourceAmount, target, source);
 
-    emit TokensSwapped(sourceAmount, targetAmount, source, target, msg.sender);
+    emit TokensSwapped(source, target, msg.sender, sourceAmount, targetAmount);
 
     require(ERC20(source).transferFrom(msg.sender, address(this), sourceAmount), "transferFrom failed");
     require(ERC20(target).transfer(msg.sender, targetAmount), "transfer failed");

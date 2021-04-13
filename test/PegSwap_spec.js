@@ -300,11 +300,11 @@ contract('PegSwap', accounts => {
       const log = result.logs[2];
 
       assert.equal(log.event, 'TokensSwapped')
-      assert.equal(log.args[0], tradeAmount)
-      assert.equal(log.args[1], tradeAmount)
-      assert.equal(log.args[2], base.address)
-      assert.equal(log.args[3], wrapped.address)
-      assert.equal(log.args[4], user)
+      assert.equal(log.args[0], base.address)
+      assert.equal(log.args[1], wrapped.address)
+      assert.equal(log.args[2], user)
+      assert.equal(log.args[3], tradeAmount)
+      assert.equal(log.args[4], tradeAmount)
     })
   })
 })
