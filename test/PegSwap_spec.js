@@ -2,8 +2,8 @@ require('./support/helpers.js')
 
 const PegSwap = artifacts.require('PegSwap')
 const Token677 = artifacts.require('Token677')
-const StandardTokenMock = artifacts.require('StandardTokenMock')
-const Token20 = StandardTokenMock
+const StandardTokenMock_18 = artifacts.require('StandardTokenMock18')
+const Token20_18 = StandardTokenMock_18
 
 contract('PegSwap', accounts => {
 
@@ -16,7 +16,7 @@ contract('PegSwap', accounts => {
   beforeEach(async () => {
     owner = accounts[0]
     user = accounts[1]
-    base = await Token20.new(owner, totalIssuance, { from: owner })
+    base = await Token20_18.new(owner, totalIssuance, { from: owner })
     wrapped = await Token677.new(totalIssuance, { from: owner })
     swap = await PegSwap.new({ from: owner })
 
@@ -27,7 +27,6 @@ contract('PegSwap', accounts => {
     checkPublicABI(PegSwap, [
       'addLiquidity',
       'getSwappableAmount',
-      'onTokenTransfer',
       'recoverStuckTokens',
       'removeLiquidity',
       'swap',
@@ -286,64 +285,26 @@ contract('PegSwap', accounts => {
     })
   })
 
-  describe('onTokenTransfer(address,uint256,bytes)', () => {
+  describe('event TokenSwapped', () => {
     beforeEach(async () => {
-      await wrapped.transfer(user, depositAmount, { from: owner })
-      await base.approve(swap.address, depositAmount, { from: owner })
-      await swap.addLiquidity(depositAmount, wrapped.address, base.address, { from: owner })
+      await wrapped.approve(swap.address, depositAmount, { from: owner })
+      await swap.addLiquidity(depositAmount, base.address, wrapped.address, { from: owner })
+      await base.approve(swap.address, depositAmount, { from: user })
     })
 
-    it('pulls accepts the source funds from the user', async () => {
-      let swapBalance = await wrapped.balanceOf(swap.address)
-      //assert.equal(depositAmount, swapBalance)
-      assert.equal(0, swapBalance)
-      let userBalance = await wrapped.balanceOf(user)
-      assert.equal(depositAmount, userBalance)
+    it('emits event', async () => {
+      const result = await swap.swap(tradeAmount, base.address, wrapped.address, {
+        from: user,
+      })
 
-      const data = '0x' + encodeAddress(base.address)
-      await wrapped.transferAndCall(swap.address, tradeAmount, data, { from: user })
+      const log = result.logs[2];
 
-      swapBalance = await wrapped.balanceOf(swap.address)
-      assert.equal(tradeAmount, swapBalance)
-      userBalance = await wrapped.balanceOf(user)
-      assert.equal(depositAmount - tradeAmount, userBalance.toNumber())
-    })
-
-    it('sends target funds to the user', async () => {
-      let swapBalance = await base.balanceOf(swap.address)
-      assert.equal(depositAmount, swapBalance)
-      let userBalance = await base.balanceOf(user)
-      assert.equal(depositAmount, userBalance)
-
-      const data = '0x' + encodeAddress(base.address)
-      await wrapped.transferAndCall(swap.address, tradeAmount, data, { from: user })
-
-      swapBalance = await base.balanceOf(swap.address)
-      assert.equal(depositAmount - tradeAmount, swapBalance)
-      userBalance = await base.balanceOf(user)
-      assert.equal(depositAmount + tradeAmount, userBalance.toNumber())
-    })
-
-    it('updates the swappable amount for the inverse of the pair', async () => {
-      let swappable = await swap.getSwappableAmount(base.address, wrapped.address)
-      assert.equal(0, swappable.toNumber())
-
-      const data = '0x' + encodeAddress(base.address)
-      await wrapped.transferAndCall(swap.address, tradeAmount, data, { from: user })
-
-      swappable = await swap.getSwappableAmount(base.address, wrapped.address)
-      assert.equal(tradeAmount, swappable.toNumber())
-    })
-
-    it('updates the swappable amount for the pair', async () => {
-      let swappable = await swap.getSwappableAmount(wrapped.address, base.address)
-      assert.equal(depositAmount, swappable.toNumber())
-
-      const data = '0x' + encodeAddress(base.address)
-      await wrapped.transferAndCall(swap.address, tradeAmount, data, { from: user })
-
-      swappable = await swap.getSwappableAmount(wrapped.address, base.address)
-      assert.equal(depositAmount - tradeAmount, swappable.toNumber())
+      assert.equal(log.event, 'TokensSwapped')
+      assert.equal(log.args[0], base.address)
+      assert.equal(log.args[1], wrapped.address)
+      assert.equal(log.args[2], user)
+      assert.equal(log.args[3], tradeAmount)
+      assert.equal(log.args[4], tradeAmount)
     })
   })
 })

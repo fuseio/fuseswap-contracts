@@ -21,10 +21,11 @@ contract PegSwap is Owned, ReentrancyGuard {
     address indexed target
   );
   event TokensSwapped(
-    uint256 amount,
     address indexed source,
     address indexed target,
-    address indexed caller
+    address indexed caller,
+    uint256 sourceAmount,
+    uint256 targetAmount
   );
   event StuckTokensRecovered(
     uint256 amount,
@@ -87,25 +88,28 @@ contract PegSwap is Owned, ReentrancyGuard {
 
   /**
    * @notice exchanges the source token for target token
-   * @param amount count of tokens being swapped
+   * @param sourceAmount count of tokens being swapped
    * @param source the token that is being given
    * @param target the token that is being taken
    */
   function swap(
-    uint256 amount,
+    uint256 sourceAmount,
     address source,
     address target
   )
     external
     nonReentrant()
   {
-    _removeLiquidity(amount, source, target);
-    _addLiquidity(amount, target, source);
+    uint256 targetAmount = _getTargetAmount(source, target, sourceAmount);
+    require(targetAmount != 0);
 
-    emit TokensSwapped(amount, source, target, msg.sender);
+    _removeLiquidity(targetAmount, source, target);
+    _addLiquidity(sourceAmount, target, source);
 
-    require(ERC20(source).transferFrom(msg.sender, address(this), amount), "transferFrom failed");
-    require(ERC20(target).transfer(msg.sender, amount), "transfer failed");
+    emit TokensSwapped(source, target, msg.sender, sourceAmount, targetAmount);
+
+    require(ERC20(source).transferFrom(msg.sender, address(this), sourceAmount), "transferFrom failed");
+    require(ERC20(target).transfer(msg.sender, targetAmount), "transfer failed");
   }
 
   /**
@@ -128,30 +132,6 @@ contract PegSwap is Owned, ReentrancyGuard {
     emit StuckTokensRecovered(amount, target);
 
     require(ERC20(target).transfer(msg.sender, amount), "transfer failed");
-  }
-
-  /**
-   * @notice swap tokens in one transaction if the sending token supports ERC677
-   * @param sender address that initially initiated the call to the source token
-   * @param amount count of tokens sent for the swap
-   * @param targetData address of target token encoded as a bytes array
-   */
-  function onTokenTransfer(
-    address sender,
-    uint256 amount,
-    bytes calldata targetData
-  )
-    external
-  {
-    address source = msg.sender;
-    address target = abi.decode(targetData, (address));
-
-    _removeLiquidity(amount, source, target);
-    _addLiquidity(amount, target, source);
-
-    emit TokensSwapped(amount, source, target, sender);
-
-    require(ERC20(target).transfer(sender, amount), "transfer failed");
   }
 
   /**
@@ -216,4 +196,26 @@ contract PegSwap is Owned, ReentrancyGuard {
     return false;
   }
 
+  function _getTargetAmount(
+    address source,
+    address target,
+    uint256 amount
+  ) 
+    private
+    returns (uint256)
+  {
+    uint8 sourceDecimals = ERC20(source).decimals();
+    uint8 targetDecimals = ERC20(target).decimals();
+
+    uint256 targetAmount;
+    if (sourceDecimals > targetDecimals) {
+      targetAmount = amount / (10 ** uint256(sourceDecimals - targetDecimals));
+    } else if (sourceDecimals < targetDecimals) {
+      targetAmount = amount * (10 ** uint256(targetDecimals - sourceDecimals));
+    } else {
+      targetAmount = amount;
+    }
+
+    return targetAmount;
+  }
 }
